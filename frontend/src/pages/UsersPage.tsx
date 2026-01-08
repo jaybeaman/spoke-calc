@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
 import api from '../api/client'
@@ -7,6 +6,7 @@ import toast from 'react-hot-toast'
 
 interface User {
   id: number
+  clerk_id: string
   email: string
   name: string
   is_admin: boolean
@@ -17,8 +17,6 @@ interface User {
 export default function UsersPage() {
   const { user: currentUser } = useAuth()
   const queryClient = useQueryClient()
-  const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null)
-  const [newPassword, setNewPassword] = useState('')
 
   // Redirect non-admins
   if (!currentUser?.is_admin) {
@@ -47,21 +45,6 @@ export default function UsersPage() {
     },
   })
 
-  const resetPasswordMutation = useMutation({
-    mutationFn: async ({ id, password }: { id: number; password: string }) => {
-      const res = await api.post<User>(`/users/${id}/reset-password`, { new_password: password })
-      return res.data
-    },
-    onSuccess: () => {
-      setResetPasswordUser(null)
-      setNewPassword('')
-      toast.success('Password reset successfully')
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.detail || 'Failed to reset password')
-    },
-  })
-
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       await api.delete(`/users/${id}`)
@@ -81,11 +64,6 @@ export default function UsersPage() {
 
   const handleToggleActive = (user: User) => {
     updateMutation.mutate({ id: user.id, data: { is_active: !user.is_active } })
-  }
-
-  const handleResetPassword = () => {
-    if (!resetPasswordUser || !newPassword) return
-    resetPasswordMutation.mutate({ id: resetPasswordUser.id, password: newPassword })
   }
 
   const handleDelete = (user: User) => {
@@ -116,6 +94,9 @@ export default function UsersPage() {
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-scenic-900">User Management</h1>
           <p className="mt-1 text-scenic-500">Manage user accounts and permissions</p>
+          <p className="mt-2 text-sm text-scenic-400">
+            Password resets are handled through Clerk. Users can reset their own passwords via the login page.
+          </p>
         </div>
 
         <div className="bg-white shadow-sm rounded-xl border border-scenic-100 overflow-hidden">
@@ -153,12 +134,12 @@ export default function UsersPage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button
                       onClick={() => handleToggleActive(user)}
-                      disabled={user.id === currentUser?.id}
+                      disabled={user.clerk_id === currentUser?.id}
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         user.is_active
                           ? 'bg-green-100 text-green-800'
                           : 'bg-red-100 text-red-800'
-                      } ${user.id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
+                      } ${user.clerk_id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
                     >
                       {user.is_active ? 'Active' : 'Disabled'}
                     </button>
@@ -166,12 +147,12 @@ export default function UsersPage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button
                       onClick={() => handleToggleAdmin(user)}
-                      disabled={user.id === currentUser?.id}
+                      disabled={user.clerk_id === currentUser?.id}
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         user.is_admin
                           ? 'bg-purple-100 text-purple-800'
                           : 'bg-scenic-100 text-scenic-800'
-                      } ${user.id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
+                      } ${user.clerk_id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
                     >
                       {user.is_admin ? 'Admin' : 'User'}
                     </button>
@@ -180,13 +161,7 @@ export default function UsersPage() {
                     {formatDate(user.created_at)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => setResetPasswordUser(user)}
-                      className="text-scenic-600 hover:text-scenic-900 mr-4"
-                    >
-                      Reset Password
-                    </button>
-                    {user.id !== currentUser?.id && (
+                    {user.clerk_id !== currentUser?.id && (
                       <button
                         onClick={() => handleDelete(user)}
                         className="text-red-600 hover:text-red-900"
@@ -200,45 +175,6 @@ export default function UsersPage() {
             </tbody>
           </table>
         </div>
-
-        {/* Reset Password Modal */}
-        {resetPasswordUser && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold text-scenic-900 mb-4">
-                Reset Password for {resetPasswordUser.name}
-              </h3>
-              <div className="mb-4">
-                <label className="label">New Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="input"
-                  placeholder="Enter new password"
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => {
-                    setResetPasswordUser(null)
-                    setNewPassword('')
-                  }}
-                  className="btn btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleResetPassword}
-                  disabled={!newPassword || resetPasswordMutation.isPending}
-                  className="btn btn-primary"
-                >
-                  {resetPasswordMutation.isPending ? 'Resetting...' : 'Reset Password'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

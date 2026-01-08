@@ -1,8 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuth } from './hooks/useAuth'
+import { SignedIn, SignedOut, RedirectToSignIn, useUser } from '@clerk/clerk-react'
 import Layout from './components/Layout'
-import LoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
+import AuthPage from './pages/AuthPage'
 import CalculatorPage from './pages/CalculatorPage'
 import RimsPage from './pages/RimsPage'
 import HubsPage from './pages/HubsPage'
@@ -12,9 +11,9 @@ import UsersPage from './pages/UsersPage'
 import HelpPage from './pages/HelpPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth()
+  const { isLoaded } = useUser()
 
-  if (isLoading) {
+  if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-scenic-900"></div>
@@ -22,11 +21,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />
-  }
-
-  return <>{children}</>
+  return (
+    <>
+      <SignedIn>{children}</SignedIn>
+      <SignedOut>
+        <RedirectToSignIn />
+      </SignedOut>
+    </>
+  )
 }
 
 function PublicHelpPage() {
@@ -42,7 +44,7 @@ function PublicHelpPage() {
                 <p className="text-xs text-scenic-500 dark:text-scenic-400">Scenic Routes Community Bicycle Center</p>
               </div>
             </div>
-            <a href="/login" className="btn btn-primary text-sm">Sign In</a>
+            <a href="/auth" className="btn btn-primary text-sm">Sign In</a>
           </div>
         </div>
       </header>
@@ -56,8 +58,7 @@ function PublicHelpPage() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/auth/*" element={<AuthPage />} />
       <Route path="/help" element={<PublicHelpPage />} />
       <Route path="/build/:id/print" element={
         <ProtectedRoute>
@@ -75,6 +76,9 @@ export default function App() {
         <Route path="builds" element={<BuildsPage />} />
         <Route path="users" element={<UsersPage />} />
       </Route>
+      {/* Redirect old login/register routes */}
+      <Route path="/login" element={<Navigate to="/auth" replace />} />
+      <Route path="/register" element={<Navigate to="/auth" replace />} />
     </Routes>
   )
 }

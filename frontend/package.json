@@ -9,13 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.1",
+    "@clerk/clerk-react": "^5.2.0",
     "@tanstack/react-query": "^5.17.0",
     "axios": "^1.6.3",
-    "react-to-print": "^2.15.1",
-    "react-hot-toast": "^2.4.1"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.21.1",
+    "react-to-print": "^2.15.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.47",

@@ -10,27 +10,30 @@ export const api = axios.create({
   },
 })
 
+// Token getter will be set by ClerkTokenProvider
+let getTokenFn: (() => Promise<string | null>) | null = null
+
+export function setTokenGetter(fn: () => Promise<string | null>) {
+  getTokenFn = fn
+}
+
 // Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+api.interceptors.request.use(async (config) => {
+  if (getTokenFn) {
+    const token = await getTokenFn()
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
   }
   return config
 })
 
-// Handle 401 responses - only logout if token was sent but rejected
+// Handle 401 responses
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Only clear auth if we actually had a token (prevents race conditions)
-      const hadToken = error.config?.headers?.Authorization
-      if (hadToken) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        window.location.href = '/login'
-      }
+      window.location.href = '/auth'
     }
     return Promise.reject(error)
   }

@@ -1,9 +1,10 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { UserButton } from '@clerk/clerk-react'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
 
 export default function Layout() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const { theme, toggleTheme } = useTheme()
 
   return (
@@ -112,12 +113,7 @@ export default function Layout() {
               >
                 Help
               </NavLink>
-              <button
-                onClick={logout}
-                className="text-sm text-scenic-500 hover:text-scenic-700 dark:text-scenic-400 dark:hover:text-scenic-200"
-              >
-                Logout
-              </button>
+              <UserButton afterSignOutUrl="/auth" />
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .database import engine, Base
-from .routers import auth, rims, hubs, calculator, builds, users
+from .routers import rims, hubs, calculator, builds, users
 
 settings = get_settings()
 
@@ -25,8 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth.router)
+# Include routers (auth is now handled by Clerk)
 app.include_router(rims.router)
 app.include_router(hubs.router)
 app.include_router(calculator.router)
