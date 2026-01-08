@@ -2,6 +2,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Build arguments for Vite env vars
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_API_URL=/api
+
+# Set as environment variables for build
+ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_API_URL=$VITE_API_URL
+
 # Install dependencies
 COPY package*.json ./
 RUN npm install

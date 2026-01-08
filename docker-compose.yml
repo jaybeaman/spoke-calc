@@ -29,11 +29,12 @@ services:
       - ./backend:/app
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
+        VITE_API_URL: ${API_URL:-/api}
     container_name: spokecalc-frontend
-    environment:
-      VITE_API_URL: ${API_URL:-/api}
-      VITE_CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
     depends_on:
       - backend
 
