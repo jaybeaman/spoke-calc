@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: spokecalc-db
+    environment:
+      POSTGRES_USER: spokecalc
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-spokecalc_secret}
+      POSTGRES_DB: spokecalc
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spokecalc"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: spokecalc-backend
+    environment:
+      DATABASE_URL: postgresql://spokecalc:${DB_PASSWORD:-spokecalc_secret}@db:5432/spokecalc
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3333,https://spokecalc.i.scenicroutes.fm}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build: ./frontend
+    container_name: spokecalc-frontend
+    environment:
+      VITE_API_URL: ${API_URL:-/api}
+    depends_on:
+      - backend
+
+  nginx:
+    image: nginx:alpine
+    container_name: spokecalc-nginx
+    ports:
+      - "3333:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  postgres_data:
