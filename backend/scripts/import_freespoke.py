@@ -334,8 +334,8 @@ def main():
 
     try:
         # Try to scrape from Freespoke
-        rims_count = scrape_rims(db, limit_pages=20)  # Limit for initial import
-        hubs_count = scrape_hubs(db, limit_pages=20)
+        rims_count = scrape_rims(db)  # Get all pages
+        hubs_count = scrape_hubs(db)  # Get all pages
 
         # If scraping didn't get much data, add sample data
         if rims_count < 10 or hubs_count < 10:
