@@ -230,13 +230,14 @@ def scrape_hubs_with_playwright(db, browser, max_pages=50):
 
             try:
                 # Freespoke hub columns: [0]Image, [1]Manufacturer, [2]Model, [3]Position, [4]OLN, [5]Axle Type, [6]Brake Type,
-                #                        [7]Drive Type, [8]Flange Diameter, [9]Flange Offsets, [10]Mid-flange Offset, [11]Weight, [12]Action
+                #                        [7]Drive Type, [8]Flange Diameter, [9]Flange Offsets (center-to-flange), [10]Mid-flange Offset, [11]Weight, [12]Action
                 # Use text_content() instead of inner_text() for better compatibility
                 manufacturer = (cells[1].text_content() or "").strip()
                 model = (cells[2].text_content() or "").strip()
                 position_text = (cells[3].text_content() or "").strip().lower()
                 flange_dia_text = (cells[8].text_content() or "").strip() if len(cells) > 8 else ""
-                offset_text = (cells[10].text_content() or "").strip() if len(cells) > 10 else ""
+                # Column 9 has the center-to-flange distances (e.g. "36 L, 22 R")
+                offset_text = (cells[9].text_content() or "").strip() if len(cells) > 9 else ""
 
 
                 if not manufacturer or not model:
