@@ -55,20 +55,27 @@ def scrape_rims(db, limit_pages=None):
         table = soup.find("table", class_="table") or soup.find("table")
         if not table:
             print("  No table found, stopping")
+            # Debug: print first 500 chars of HTML to see what we're getting
+            print(f"  HTML preview: {response.text[:500]}")
             break
 
-        # Get tbody rows if present, otherwise get all tr
-        tbody = table.find("tbody")
-        if tbody:
-            rows = tbody.find_all("tr")
-        else:
-            rows = table.find_all("tr")[1:]  # Skip header row
+        # Get all rows - both thead and tbody
+        all_rows = table.find_all("tr")
+        print(f"  Found {len(all_rows)} total tr elements")
+
+        # Skip header row(s) - rows with th elements
+        rows = [r for r in all_rows if r.find("td")]
 
         if not rows:
-            print("  No data rows found, stopping")
+            print("  No data rows with <td> found, stopping")
+            # Debug: show table structure
+            print(f"  Table classes: {table.get('class')}")
+            print(f"  Table children: {[child.name for child in table.children if hasattr(child, 'name')]}")
+            if all_rows:
+                print(f"  First row HTML: {str(all_rows[0])[:200]}")
             break
 
-        print(f"  Found {len(rows)} rows on page {page}")
+        print(f"  Found {len(rows)} data rows on page {page}")
 
         rows_processed = 0
         for row in rows:
@@ -237,18 +244,18 @@ def scrape_hubs(db, limit_pages=None):
             print("  No table found, stopping")
             break
 
-        # Get tbody rows if present, otherwise get all tr
-        tbody = table.find("tbody")
-        if tbody:
-            rows = tbody.find_all("tr")
-        else:
-            rows = table.find_all("tr")[1:]  # Skip header row
+        # Get all rows - both thead and tbody
+        all_rows = table.find_all("tr")
+        print(f"  Found {len(all_rows)} total tr elements")
+
+        # Skip header row(s) - rows with th elements
+        rows = [r for r in all_rows if r.find("td")]
 
         if not rows:
-            print("  No data rows found, stopping")
+            print("  No data rows with <td> found, stopping")
             break
 
-        print(f"  Found {len(rows)} rows on page {page}")
+        print(f"  Found {len(rows)} data rows on page {page}")
 
         rows_processed = 0
         for row in rows:
