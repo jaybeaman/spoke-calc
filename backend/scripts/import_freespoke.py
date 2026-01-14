@@ -32,12 +32,14 @@ def scrape_rims(db, limit_pages=None):
 
     page = 1
     total_imported = 0
+    max_pages = 20  # Safety limit
 
-    while True:
+    while page <= max_pages:
         if limit_pages and page > limit_pages:
             break
 
-        url = f"{BASE_URL}/rims?page={page}"
+        # Freespoke uses ?Page= (capital P) for pagination
+        url = f"{BASE_URL}/rims?Page={page}"
         print(f"  Fetching page {page}...")
 
         try:
@@ -60,21 +62,24 @@ def scrape_rims(db, limit_pages=None):
             print("  No more rows found, stopping")
             break
 
+        rows_processed = 0
         for row in rows:
             cells = row.find_all("td")
             if len(cells) < 8:
                 continue
 
             try:
-                # Parse the row data
+                # Freespoke columns: Manufacturer, Model, ISO, ERD, Offset drilling, Offset (avg), Outer width, Inner width, Height, Weight
                 manufacturer = cells[0].get_text(strip=True)
                 model = cells[1].get_text(strip=True)
                 iso_size_text = cells[2].get_text(strip=True)
                 erd_text = cells[3].get_text(strip=True)
-                offset_text = cells[4].get_text(strip=True)
-                outer_width_text = cells[5].get_text(strip=True)
-                inner_width_text = cells[6].get_text(strip=True)
-                weight_text = cells[7].get_text(strip=True) if len(cells) > 7 else ""
+                # cells[4] is "Offset drilling" (e.g., "11 L, 11 R") - skip
+                offset_text = cells[5].get_text(strip=True) if len(cells) > 5 else "0"  # Offset (avg)
+                outer_width_text = cells[6].get_text(strip=True) if len(cells) > 6 else ""
+                inner_width_text = cells[7].get_text(strip=True) if len(cells) > 7 else ""
+                # cells[8] is height - skip
+                weight_text = cells[9].get_text(strip=True) if len(cells) > 9 else ""
 
                 # Skip if missing critical data
                 if not manufacturer or not model or not erd_text:
@@ -88,15 +93,42 @@ def scrape_rims(db, limit_pages=None):
                 ).first()
 
                 if existing:
+                    rows_processed += 1
                     continue
 
                 # Parse numeric values
                 iso_size = int(iso_size_text) if iso_size_text.isdigit() else None
-                erd = float(erd_text) if erd_text else None
-                offset = float(offset_text) if offset_text and offset_text != "-" else 0
-                outer_width = float(outer_width_text) if outer_width_text and outer_width_text != "-" else None
-                inner_width = float(inner_width_text) if inner_width_text and inner_width_text != "-" else None
-                weight = float(weight_text) if weight_text and weight_text != "-" else None
+
+                # Parse ERD - handle formats like "601.8"
+                try:
+                    erd = float(erd_text.replace(",", "."))
+                except (ValueError, AttributeError):
+                    erd = None
+
+                # Parse offset
+                try:
+                    offset = float(offset_text.replace(",", ".")) if offset_text and offset_text != "-" else 0
+                except ValueError:
+                    offset = 0
+
+                # Parse outer width
+                try:
+                    outer_width = float(outer_width_text.replace(",", ".")) if outer_width_text and outer_width_text != "-" else None
+                except ValueError:
+                    outer_width = None
+
+                # Parse inner width
+                try:
+                    inner_width = float(inner_width_text.replace(",", ".")) if inner_width_text and inner_width_text != "-" else None
+                except ValueError:
+                    inner_width = None
+
+                # Parse weight - remove "g" suffix
+                try:
+                    weight_clean = weight_text.replace("g", "").replace(",", ".").strip()
+                    weight = float(weight_clean) if weight_clean and weight_clean != "-" else None
+                except ValueError:
+                    weight = None
 
                 if erd is None:
                     continue
@@ -114,6 +146,7 @@ def scrape_rims(db, limit_pages=None):
                 )
                 db.add(rim)
                 total_imported += 1
+                rows_processed += 1
 
             except Exception as e:
                 print(f"  Error parsing row: {e}")
@@ -122,9 +155,8 @@ def scrape_rims(db, limit_pages=None):
         db.commit()
         print(f"  Page {page} complete, {total_imported} rims imported so far")
 
-        # Check for next page
-        next_link = soup.find("a", string="Next")
-        if not next_link:
+        # If we didn't process any rows on this page, we've gone past the last page
+        if rows_processed == 0:
             break
 
         page += 1
@@ -134,18 +166,52 @@ def scrape_rims(db, limit_pages=None):
     return total_imported
 
 
+def parse_lr_value(text):
+    """Parse values like '56 L, 47 R' or just '45' into (left, right) tuple."""
+    if not text or text == "-":
+        return None, None
+
+    text = text.replace(",", ".").strip()
+
+    # Check for "L" and "R" pattern (e.g., "56 L, 47 R" or "56L, 47R")
+    import re
+    lr_match = re.search(r'([\d.]+)\s*L.*?([\d.]+)\s*R', text, re.IGNORECASE)
+    if lr_match:
+        try:
+            return float(lr_match.group(1)), float(lr_match.group(2))
+        except ValueError:
+            pass
+
+    # Also try R...L pattern
+    rl_match = re.search(r'([\d.]+)\s*R.*?([\d.]+)\s*L', text, re.IGNORECASE)
+    if rl_match:
+        try:
+            return float(rl_match.group(2)), float(rl_match.group(1))
+        except ValueError:
+            pass
+
+    # Single value - return same for both
+    try:
+        val = float(re.sub(r'[^\d.]', '', text))
+        return val, val
+    except ValueError:
+        return None, None
+
+
 def scrape_hubs(db, limit_pages=None):
     """Scrape hub data from Freespoke."""
     print("Scraping hubs from Freespoke...")
 
     page = 1
     total_imported = 0
+    max_pages = 20  # Safety limit
 
-    while True:
+    while page <= max_pages:
         if limit_pages and page > limit_pages:
             break
 
-        url = f"{BASE_URL}/hubs?page={page}"
+        # Freespoke uses ?Page= (capital P) for pagination
+        url = f"{BASE_URL}/hubs?Page={page}"
         print(f"  Fetching page {page}...")
 
         try:
@@ -168,73 +234,69 @@ def scrape_hubs(db, limit_pages=None):
             print("  No more rows found, stopping")
             break
 
+        rows_processed = 0
         for row in rows:
             cells = row.find_all("td")
             if len(cells) < 6:
                 continue
 
             try:
-                # Parse the row data (adjust based on actual table structure)
+                # Freespoke hub columns: Manufacturer, Model, Position, OLN, Axle Type, Brake Type,
+                #                        Drive Type, Flange Diameter, Mid-flange Offset, Weight
                 manufacturer = cells[0].get_text(strip=True)
                 model = cells[1].get_text(strip=True)
-                position = cells[2].get_text(strip=True).lower() if len(cells) > 2 else None
+                position_text = cells[2].get_text(strip=True).lower() if len(cells) > 2 else ""
 
-                # The table structure varies - try to get flange data
-                # This may need adjustment based on actual HTML structure
-                flange_diameter_text = cells[3].get_text(strip=True) if len(cells) > 3 else ""
-                offset_left_text = cells[4].get_text(strip=True) if len(cells) > 4 else ""
-                offset_right_text = cells[5].get_text(strip=True) if len(cells) > 5 else ""
+                # Flange diameter is in column 7 (index 7), Mid-flange offset is column 8 (index 8)
+                flange_dia_text = cells[7].get_text(strip=True) if len(cells) > 7 else ""
+                offset_text = cells[8].get_text(strip=True) if len(cells) > 8 else ""
 
                 # Skip if missing critical data
                 if not manufacturer or not model:
                     continue
 
+                # Normalize position
+                position = None
+                if "front" in position_text:
+                    position = "front"
+                elif "rear" in position_text:
+                    position = "rear"
+
                 # Check if already exists
                 existing = db.query(Hub).filter(
                     Hub.manufacturer == manufacturer,
                     Hub.model == model,
+                    Hub.position == position,
                     Hub.is_reference == True
                 ).first()
 
                 if existing:
+                    rows_processed += 1
                     continue
 
-                # Parse numeric values - hub tables often have combined or split flange data
-                flange_diameter = None
-                offset_left = None
-                offset_right = None
+                # Parse flange diameter - may be "56 L, 47 R" format
+                flange_left, flange_right = parse_lr_value(flange_dia_text)
 
-                try:
-                    flange_diameter = float(flange_diameter_text) if flange_diameter_text and flange_diameter_text != "-" else None
-                except:
-                    pass
+                # Parse offset - may be asymmetric like "-7.6 L, 35.2 R"
+                offset_left, offset_right = parse_lr_value(offset_text)
 
-                try:
-                    offset_left = float(offset_left_text) if offset_left_text and offset_left_text != "-" else None
-                except:
-                    pass
-
-                try:
-                    offset_right = float(offset_right_text) if offset_right_text and offset_right_text != "-" else None
-                except:
-                    pass
-
-                # Only import if we have at least some useful data
-                if flange_diameter is None and offset_left is None:
+                # Need at least flange or offset data
+                if flange_left is None and offset_left is None:
                     continue
 
                 hub = Hub(
                     manufacturer=manufacturer,
                     model=model,
-                    position=position if position in ["front", "rear"] else None,
-                    flange_diameter_left=flange_diameter or 0,
-                    flange_diameter_right=flange_diameter or 0,
-                    flange_offset_left=offset_left or 0,
-                    flange_offset_right=offset_right or offset_left or 0,
+                    position=position,
+                    flange_diameter_left=flange_left or 0,
+                    flange_diameter_right=flange_right or flange_left or 0,
+                    flange_offset_left=abs(offset_left) if offset_left else 0,
+                    flange_offset_right=abs(offset_right) if offset_right else (abs(offset_left) if offset_left else 0),
                     is_reference=True
                 )
                 db.add(hub)
                 total_imported += 1
+                rows_processed += 1
 
             except Exception as e:
                 print(f"  Error parsing row: {e}")
@@ -243,9 +305,8 @@ def scrape_hubs(db, limit_pages=None):
         db.commit()
         print(f"  Page {page} complete, {total_imported} hubs imported so far")
 
-        # Check for next page
-        next_link = soup.find("a", string="Next")
-        if not next_link:
+        # If we didn't process any rows on this page, we've gone past the last page
+        if rows_processed == 0:
             break
 
         page += 1
@@ -256,21 +317,84 @@ def scrape_hubs(db, limit_pages=None):
 
 
 def add_sample_data(db):
-    """Add some common sample data if scraping fails or for testing."""
+    """Add common sample data - comprehensive list of popular rims and hubs."""
     print("Adding sample reference data...")
 
-    # Sample rims
+    # Comprehensive sample rims - popular road, gravel, and MTB rims
     sample_rims = [
+        # Velocity rims
         {"manufacturer": "Velocity", "model": "A23", "iso_size": 622, "erd": 600, "inner_width": 19},
+        {"manufacturer": "Velocity", "model": "A23 OC", "iso_size": 622, "erd": 600, "inner_width": 19, "drilling_offset": 2.5},
         {"manufacturer": "Velocity", "model": "Blunt 35", "iso_size": 622, "erd": 596, "inner_width": 29},
+        {"manufacturer": "Velocity", "model": "Quill", "iso_size": 622, "erd": 604, "inner_width": 18},
+        {"manufacturer": "Velocity", "model": "Aileron", "iso_size": 622, "erd": 602, "inner_width": 17},
+        {"manufacturer": "Velocity", "model": "Deep V", "iso_size": 622, "erd": 578, "inner_width": 14},
+        {"manufacturer": "Velocity", "model": "Cliffhanger", "iso_size": 559, "erd": 535, "inner_width": 29},
+        # DT Swiss rims
         {"manufacturer": "DT Swiss", "model": "R460", "iso_size": 622, "erd": 598, "inner_width": 18},
         {"manufacturer": "DT Swiss", "model": "R470", "iso_size": 622, "erd": 599, "inner_width": 19},
+        {"manufacturer": "DT Swiss", "model": "RR411", "iso_size": 622, "erd": 599, "inner_width": 18},
+        {"manufacturer": "DT Swiss", "model": "RR421", "iso_size": 622, "erd": 599, "inner_width": 21},
+        {"manufacturer": "DT Swiss", "model": "RR511", "iso_size": 622, "erd": 597, "inner_width": 18},
+        {"manufacturer": "DT Swiss", "model": "GR531", "iso_size": 622, "erd": 595, "inner_width": 25},
+        {"manufacturer": "DT Swiss", "model": "XR331", "iso_size": 559, "erd": 535, "inner_width": 22.5},
+        {"manufacturer": "DT Swiss", "model": "XM481", "iso_size": 584, "erd": 559, "inner_width": 30},
+        {"manufacturer": "DT Swiss", "model": "EX511", "iso_size": 584, "erd": 559, "inner_width": 30},
+        # H Plus Son rims
         {"manufacturer": "H Plus Son", "model": "Archetype", "iso_size": 622, "erd": 600, "inner_width": 18},
         {"manufacturer": "H Plus Son", "model": "TB14", "iso_size": 622, "erd": 602, "inner_width": 14},
+        {"manufacturer": "H Plus Son", "model": "The Hydra", "iso_size": 622, "erd": 594, "inner_width": 25},
+        {"manufacturer": "H Plus Son", "model": "Eero", "iso_size": 622, "erd": 595, "inner_width": 23},
+        {"manufacturer": "H Plus Son", "model": "SL42", "iso_size": 622, "erd": 588, "inner_width": 18},
+        {"manufacturer": "H Plus Son", "model": "Formation Face", "iso_size": 622, "erd": 592, "inner_width": 22},
+        # Mavic rims
         {"manufacturer": "Mavic", "model": "Open Pro", "iso_size": 622, "erd": 602, "inner_width": 15},
+        {"manufacturer": "Mavic", "model": "Open Pro UST", "iso_size": 622, "erd": 600, "inner_width": 17},
+        {"manufacturer": "Mavic", "model": "A119", "iso_size": 622, "erd": 600, "inner_width": 19},
+        {"manufacturer": "Mavic", "model": "A319", "iso_size": 622, "erd": 596, "inner_width": 21},
+        {"manufacturer": "Mavic", "model": "XM819", "iso_size": 559, "erd": 535, "inner_width": 19},
+        # Sun/Ringle rims
         {"manufacturer": "Sun", "model": "CR18", "iso_size": 622, "erd": 600, "inner_width": 18},
+        {"manufacturer": "Sun Ringle", "model": "Rhyno Lite", "iso_size": 559, "erd": 535, "inner_width": 19},
+        {"manufacturer": "Sun Ringle", "model": "MTX33", "iso_size": 559, "erd": 535, "inner_width": 28},
+        {"manufacturer": "Sun Ringle", "model": "Duroc 50", "iso_size": 584, "erd": 560, "inner_width": 50},
+        # Alex rims
         {"manufacturer": "Alex", "model": "DM18", "iso_size": 622, "erd": 600, "inner_width": 18},
-        {"manufacturer": "WTB", "model": "KOM i25", "iso_size": 622, "erd": 600, "inner_width": 25},
+        {"manufacturer": "Alex", "model": "DA22", "iso_size": 622, "erd": 596, "inner_width": 22},
+        {"manufacturer": "Alex", "model": "DM24", "iso_size": 559, "erd": 535, "inner_width": 24},
+        {"manufacturer": "Alex", "model": "Adventurer 2", "iso_size": 622, "erd": 600, "inner_width": 18},
+        # WTB rims
+        {"manufacturer": "WTB", "model": "KOM Light i25", "iso_size": 622, "erd": 600, "inner_width": 25},
+        {"manufacturer": "WTB", "model": "KOM i23", "iso_size": 622, "erd": 600, "inner_width": 23},
+        {"manufacturer": "WTB", "model": "Scraper i45", "iso_size": 584, "erd": 559, "inner_width": 45},
+        {"manufacturer": "WTB", "model": "Asym i29", "iso_size": 584, "erd": 560, "inner_width": 29, "drilling_offset": 3},
+        {"manufacturer": "WTB", "model": "ST i25", "iso_size": 559, "erd": 535, "inner_width": 25},
+        # Stan's NoTubes rims
+        {"manufacturer": "Stan's NoTubes", "model": "Arch S1", "iso_size": 584, "erd": 559, "inner_width": 26},
+        {"manufacturer": "Stan's NoTubes", "model": "Crest S1", "iso_size": 584, "erd": 559, "inner_width": 21},
+        {"manufacturer": "Stan's NoTubes", "model": "Flow S1", "iso_size": 584, "erd": 559, "inner_width": 29},
+        {"manufacturer": "Stan's NoTubes", "model": "Grail S1", "iso_size": 622, "erd": 596, "inner_width": 24},
+        # Ryde/Rigida rims
+        {"manufacturer": "Ryde", "model": "Andra 40", "iso_size": 622, "erd": 590, "inner_width": 21},
+        {"manufacturer": "Ryde", "model": "Zac 19", "iso_size": 622, "erd": 602, "inner_width": 19},
+        {"manufacturer": "Ryde", "model": "Trace 25", "iso_size": 622, "erd": 596, "inner_width": 25},
+        # Kinlin/Pacenti rims
+        {"manufacturer": "Kinlin", "model": "XR31T", "iso_size": 622, "erd": 594, "inner_width": 21},
+        {"manufacturer": "Kinlin", "model": "XR22T", "iso_size": 622, "erd": 600, "inner_width": 17},
+        {"manufacturer": "Kinlin", "model": "XR27T", "iso_size": 622, "erd": 596, "inner_width": 19},
+        {"manufacturer": "Pacenti", "model": "SL25", "iso_size": 622, "erd": 600, "inner_width": 25},
+        {"manufacturer": "Pacenti", "model": "Brevet", "iso_size": 622, "erd": 596, "inner_width": 27},
+        # Industry Nine rims
+        {"manufacturer": "Industry Nine", "model": "Trail S", "iso_size": 584, "erd": 559, "inner_width": 28},
+        {"manufacturer": "Industry Nine", "model": "Enduro S", "iso_size": 584, "erd": 559, "inner_width": 32},
+        {"manufacturer": "Industry Nine", "model": "Grade", "iso_size": 622, "erd": 596, "inner_width": 24},
+        # Spank rims
+        {"manufacturer": "Spank", "model": "Oozy Trail 295", "iso_size": 584, "erd": 557, "inner_width": 29.5},
+        {"manufacturer": "Spank", "model": "Spike 350", "iso_size": 584, "erd": 558, "inner_width": 35},
+        # Enve rims
+        {"manufacturer": "Enve", "model": "SES 3.4", "iso_size": 622, "erd": 590, "inner_width": 21},
+        {"manufacturer": "Enve", "model": "M525", "iso_size": 584, "erd": 556, "inner_width": 25},
+        {"manufacturer": "Enve", "model": "G23", "iso_size": 622, "erd": 598, "inner_width": 23},
     ]
 
     for rim_data in sample_rims:
@@ -282,8 +406,9 @@ def add_sample_data(db):
             rim = Rim(**rim_data, is_reference=True)
             db.add(rim)
 
-    # Sample hubs
+    # Comprehensive sample hubs
     sample_hubs = [
+        # Shimano road hubs
         {"manufacturer": "Shimano", "model": "105 R7000 Front", "position": "front",
          "flange_diameter_left": 45, "flange_diameter_right": 45,
          "flange_offset_left": 35, "flange_offset_right": 35, "spoke_count": 32},
@@ -296,24 +421,148 @@ def add_sample_data(db):
         {"manufacturer": "Shimano", "model": "Ultegra R8000 Rear", "position": "rear",
          "flange_diameter_left": 45, "flange_diameter_right": 45,
          "flange_offset_left": 20.5, "flange_offset_right": 37.5, "spoke_count": 32},
+        {"manufacturer": "Shimano", "model": "Dura-Ace R9100 Front", "position": "front",
+         "flange_diameter_left": 45, "flange_diameter_right": 45,
+         "flange_offset_left": 35, "flange_offset_right": 35, "spoke_count": 28},
+        {"manufacturer": "Shimano", "model": "Dura-Ace R9100 Rear", "position": "rear",
+         "flange_diameter_left": 45, "flange_diameter_right": 45,
+         "flange_offset_left": 18.5, "flange_offset_right": 37.5, "spoke_count": 28},
+        {"manufacturer": "Shimano", "model": "Tiagra 4700 Front", "position": "front",
+         "flange_diameter_left": 45, "flange_diameter_right": 45,
+         "flange_offset_left": 35, "flange_offset_right": 35, "spoke_count": 32},
+        {"manufacturer": "Shimano", "model": "Tiagra 4700 Rear", "position": "rear",
+         "flange_diameter_left": 45, "flange_diameter_right": 45,
+         "flange_offset_left": 21.5, "flange_offset_right": 37.5, "spoke_count": 32},
+        # Shimano disc hubs
+        {"manufacturer": "Shimano", "model": "RS470 Front Disc", "position": "front",
+         "flange_diameter_left": 56, "flange_diameter_right": 60,
+         "flange_offset_left": 30.3, "flange_offset_right": 37.3, "spoke_count": 32},
+        {"manufacturer": "Shimano", "model": "RS470 Rear Disc", "position": "rear",
+         "flange_diameter_left": 56, "flange_diameter_right": 56,
+         "flange_offset_left": 20.5, "flange_offset_right": 37.5, "spoke_count": 32},
+        {"manufacturer": "Shimano", "model": "XT M8100 Front", "position": "front",
+         "flange_diameter_left": 58, "flange_diameter_right": 58,
+         "flange_offset_left": 28, "flange_offset_right": 42, "spoke_count": 32},
+        {"manufacturer": "Shimano", "model": "XT M8100 Rear", "position": "rear",
+         "flange_diameter_left": 58, "flange_diameter_right": 56,
+         "flange_offset_left": 24, "flange_offset_right": 36, "spoke_count": 32},
+        {"manufacturer": "Shimano", "model": "Deore M6100 Front", "position": "front",
+         "flange_diameter_left": 58, "flange_diameter_right": 58,
+         "flange_offset_left": 28, "flange_offset_right": 42, "spoke_count": 32},
+        {"manufacturer": "Shimano", "model": "Deore M6100 Rear", "position": "rear",
+         "flange_diameter_left": 58, "flange_diameter_right": 56,
+         "flange_offset_left": 24, "flange_offset_right": 36, "spoke_count": 32},
+        # DT Swiss hubs
         {"manufacturer": "DT Swiss", "model": "350 Front", "position": "front",
          "flange_diameter_left": 52, "flange_diameter_right": 52,
          "flange_offset_left": 34.5, "flange_offset_right": 34.5, "spoke_count": 32},
         {"manufacturer": "DT Swiss", "model": "350 Rear", "position": "rear",
          "flange_diameter_left": 52, "flange_diameter_right": 52,
          "flange_offset_left": 19.4, "flange_offset_right": 37.8, "spoke_count": 32},
+        {"manufacturer": "DT Swiss", "model": "350 Disc Front", "position": "front",
+         "flange_diameter_left": 58, "flange_diameter_right": 54,
+         "flange_offset_left": 31.6, "flange_offset_right": 38.4, "spoke_count": 32},
+        {"manufacturer": "DT Swiss", "model": "370 Front", "position": "front",
+         "flange_diameter_left": 52, "flange_diameter_right": 52,
+         "flange_offset_left": 34.5, "flange_offset_right": 34.5, "spoke_count": 32},
+        {"manufacturer": "DT Swiss", "model": "370 Rear", "position": "rear",
+         "flange_diameter_left": 52, "flange_diameter_right": 52,
+         "flange_offset_left": 19.4, "flange_offset_right": 37.8, "spoke_count": 32},
+        {"manufacturer": "DT Swiss", "model": "240 Front", "position": "front",
+         "flange_diameter_left": 44, "flange_diameter_right": 44,
+         "flange_offset_left": 36.5, "flange_offset_right": 36.5, "spoke_count": 28},
+        {"manufacturer": "DT Swiss", "model": "240 Rear", "position": "rear",
+         "flange_diameter_left": 44, "flange_diameter_right": 44,
+         "flange_offset_left": 17.5, "flange_offset_right": 35.5, "spoke_count": 28},
+        # White Industries hubs
         {"manufacturer": "White Industries", "model": "T11 Front", "position": "front",
          "flange_diameter_left": 58, "flange_diameter_right": 58,
          "flange_offset_left": 32.5, "flange_offset_right": 32.5, "spoke_count": 32},
+        {"manufacturer": "White Industries", "model": "T11 Rear", "position": "rear",
+         "flange_diameter_left": 58, "flange_diameter_right": 58,
+         "flange_offset_left": 19.5, "flange_offset_right": 36.5, "spoke_count": 32},
+        {"manufacturer": "White Industries", "model": "CLD Front", "position": "front",
+         "flange_diameter_left": 64, "flange_diameter_right": 58,
+         "flange_offset_left": 27.5, "flange_offset_right": 36.5, "spoke_count": 32},
+        {"manufacturer": "White Industries", "model": "CLD Rear", "position": "rear",
+         "flange_diameter_left": 58, "flange_diameter_right": 58,
+         "flange_offset_left": 20, "flange_offset_right": 37, "spoke_count": 32},
+        # Phil Wood hubs
         {"manufacturer": "Phil Wood", "model": "High Flange Track", "position": "front",
          "flange_diameter_left": 66, "flange_diameter_right": 66,
          "flange_offset_left": 35, "flange_offset_right": 35, "spoke_count": 32},
+        {"manufacturer": "Phil Wood", "model": "Low Flange Track", "position": "front",
+         "flange_diameter_left": 46, "flange_diameter_right": 46,
+         "flange_offset_left": 35, "flange_offset_right": 35, "spoke_count": 32},
+        {"manufacturer": "Phil Wood", "model": "High Flange Rear Track", "position": "rear",
+         "flange_diameter_left": 66, "flange_diameter_right": 66,
+         "flange_offset_left": 22.5, "flange_offset_right": 22.5, "spoke_count": 32},
+        # Chris King hubs
         {"manufacturer": "Chris King", "model": "R45 Front", "position": "front",
          "flange_diameter_left": 54, "flange_diameter_right": 54,
          "flange_offset_left": 33.65, "flange_offset_right": 33.65, "spoke_count": 32},
+        {"manufacturer": "Chris King", "model": "R45 Rear", "position": "rear",
+         "flange_diameter_left": 54, "flange_diameter_right": 54,
+         "flange_offset_left": 18.6, "flange_offset_right": 37.7, "spoke_count": 32},
+        {"manufacturer": "Chris King", "model": "R45D Front", "position": "front",
+         "flange_diameter_left": 62, "flange_diameter_right": 54,
+         "flange_offset_left": 26.5, "flange_offset_right": 38.5, "spoke_count": 28},
+        {"manufacturer": "Chris King", "model": "R45D Rear", "position": "rear",
+         "flange_diameter_left": 54, "flange_diameter_right": 54,
+         "flange_offset_left": 18.6, "flange_offset_right": 37.7, "spoke_count": 28},
+        # Hope hubs
         {"manufacturer": "Hope", "model": "RS4 Front", "position": "front",
          "flange_diameter_left": 58, "flange_diameter_right": 58,
          "flange_offset_left": 33.5, "flange_offset_right": 33.5, "spoke_count": 32},
+        {"manufacturer": "Hope", "model": "RS4 Rear", "position": "rear",
+         "flange_diameter_left": 58, "flange_diameter_right": 58,
+         "flange_offset_left": 18.5, "flange_offset_right": 37.5, "spoke_count": 32},
+        {"manufacturer": "Hope", "model": "Pro 4 Front", "position": "front",
+         "flange_diameter_left": 64, "flange_diameter_right": 58,
+         "flange_offset_left": 27, "flange_offset_right": 43, "spoke_count": 32},
+        {"manufacturer": "Hope", "model": "Pro 4 Rear 148mm", "position": "rear",
+         "flange_diameter_left": 58, "flange_diameter_right": 58,
+         "flange_offset_left": 25, "flange_offset_right": 35, "spoke_count": 32},
+        # Industry Nine hubs
+        {"manufacturer": "Industry Nine", "model": "Torch Road Front", "position": "front",
+         "flange_diameter_left": 54, "flange_diameter_right": 54,
+         "flange_offset_left": 33, "flange_offset_right": 33, "spoke_count": 24},
+        {"manufacturer": "Industry Nine", "model": "Torch Road Rear", "position": "rear",
+         "flange_diameter_left": 54, "flange_diameter_right": 54,
+         "flange_offset_left": 19, "flange_offset_right": 37, "spoke_count": 24},
+        {"manufacturer": "Industry Nine", "model": "Hydra Front", "position": "front",
+         "flange_diameter_left": 62, "flange_diameter_right": 58,
+         "flange_offset_left": 24.75, "flange_offset_right": 45.25, "spoke_count": 32},
+        {"manufacturer": "Industry Nine", "model": "Hydra Rear 148mm", "position": "rear",
+         "flange_diameter_left": 58, "flange_diameter_right": 58,
+         "flange_offset_left": 24, "flange_offset_right": 36, "spoke_count": 32},
+        # Onyx hubs
+        {"manufacturer": "Onyx", "model": "Vesper Front", "position": "front",
+         "flange_diameter_left": 64, "flange_diameter_right": 54,
+         "flange_offset_left": 24.8, "flange_offset_right": 45.2, "spoke_count": 32},
+        {"manufacturer": "Onyx", "model": "Vesper Rear 148mm", "position": "rear",
+         "flange_diameter_left": 58, "flange_diameter_right": 58,
+         "flange_offset_left": 23, "flange_offset_right": 37, "spoke_count": 32},
+        # Bitex hubs (affordable options)
+        {"manufacturer": "Bitex", "model": "RAF12 Front", "position": "front",
+         "flange_diameter_left": 54, "flange_diameter_right": 54,
+         "flange_offset_left": 34.5, "flange_offset_right": 34.5, "spoke_count": 32},
+        {"manufacturer": "Bitex", "model": "RAR12 Rear", "position": "rear",
+         "flange_diameter_left": 54, "flange_diameter_right": 54,
+         "flange_offset_left": 19.2, "flange_offset_right": 37.8, "spoke_count": 32},
+        # Novatec hubs
+        {"manufacturer": "Novatec", "model": "A291 Front", "position": "front",
+         "flange_diameter_left": 54, "flange_diameter_right": 54,
+         "flange_offset_left": 34.5, "flange_offset_right": 34.5, "spoke_count": 32},
+        {"manufacturer": "Novatec", "model": "F482 Rear", "position": "rear",
+         "flange_diameter_left": 54, "flange_diameter_right": 54,
+         "flange_offset_left": 19, "flange_offset_right": 37, "spoke_count": 32},
+        {"manufacturer": "Novatec", "model": "D791 Front Boost", "position": "front",
+         "flange_diameter_left": 62, "flange_diameter_right": 58,
+         "flange_offset_left": 27.5, "flange_offset_right": 42.5, "spoke_count": 32},
+        {"manufacturer": "Novatec", "model": "D772 Rear Boost", "position": "rear",
+         "flange_diameter_left": 58, "flange_diameter_right": 58,
+         "flange_offset_left": 24, "flange_offset_right": 36, "spoke_count": 32},
     ]
 
     for hub_data in sample_hubs:
@@ -333,14 +582,12 @@ def main():
     db = SessionLocal()
 
     try:
-        # Try to scrape from Freespoke
+        # Always add sample data first (skips duplicates)
+        add_sample_data(db)
+
+        # Then try to scrape additional data from Freespoke
         rims_count = scrape_rims(db)  # Get all pages
         hubs_count = scrape_hubs(db)  # Get all pages
-
-        # If scraping didn't get much data, add sample data
-        if rims_count < 10 or hubs_count < 10:
-            print("Scraping returned limited data, adding sample data...")
-            add_sample_data(db)
 
         print("\nImport complete!")
         print(f"  Total rims in database: {db.query(Rim).count()}")

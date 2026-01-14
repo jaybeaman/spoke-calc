@@ -153,26 +153,25 @@ export default function BuildSheetPage() {
       </div>
 
       {/* Printable Content */}
-      <div className="p-6">
+      <div className="p-6 print:p-0">
         <div
           ref={printRef}
-          className="max-w-3xl mx-auto bg-white shadow-lg print:shadow-none"
-          style={{ minHeight: '11in' }}
+          className="max-w-3xl mx-auto bg-white shadow-lg print:shadow-none print-compact"
         >
-          <div className="p-8">
+          <div className="p-8 print:p-4">
             {/* Header */}
-            <div className="flex items-start justify-between border-b-2 border-scenic-900 pb-6 mb-6">
-              <div className="flex items-center gap-4">
-                <img src="/logo.png" alt="Scenic Routes" className="h-16 w-16" />
+            <div className="flex items-start justify-between border-b-2 border-scenic-900 pb-6 mb-6 print:pb-3 print:mb-3">
+              <div className="flex items-center gap-4 print:gap-2">
+                <img src="/logo.png" alt="Scenic Routes" className="h-16 w-16 print:h-10 print:w-10" />
                 <div>
-                  <h1 className="text-xl font-bold text-scenic-900">Scenic Routes</h1>
-                  <p className="text-sm text-scenic-600">Community Bicycle Center</p>
-                  <p className="text-xs text-scenic-500">San Francisco, CA</p>
+                  <h1 className="text-xl font-bold text-scenic-900 print:text-base">Scenic Routes</h1>
+                  <p className="text-sm text-scenic-600 print:text-xs">Community Bicycle Center</p>
+                  <p className="text-xs text-scenic-500 print:hidden">San Francisco, CA</p>
                 </div>
               </div>
               <div className="text-right">
-                <h2 className="text-2xl font-bold text-scenic-900">Wheel Build Sheet</h2>
-                <p className="text-sm text-scenic-500">{formatDate(build.created_at)}</p>
+                <h2 className="text-2xl font-bold text-scenic-900 print:text-lg">Wheel Build Sheet</h2>
+                <p className="text-sm text-scenic-500 print:text-xs">{formatDate(build.created_at)}</p>
               </div>
             </div>
 
@@ -185,21 +184,21 @@ export default function BuildSheetPage() {
             )}
 
             {/* Spoke Lengths - Main Focus */}
-            <div className="mb-8 p-6 bg-scenic-900 text-white rounded-xl">
-              <h3 className="text-sm font-medium text-scenic-300 mb-4">SPOKE LENGTHS</h3>
-              <div className="grid grid-cols-2 gap-8">
+            <div className="mb-8 p-6 bg-scenic-900 text-white rounded-xl print-spoke-hero print:rounded-lg">
+              <h3 className="text-sm font-medium text-scenic-300 mb-4 print:mb-2">SPOKE LENGTHS</h3>
+              <div className="grid grid-cols-2 gap-8 print:gap-4">
                 <div>
                   <div className="text-scenic-400 text-sm">Left / Non-Drive Side</div>
-                  <div className="text-5xl font-bold">{build.spoke_length_left}mm</div>
-                  <div className="text-scenic-400 text-sm mt-1">{build.cross_pattern_left} cross</div>
+                  <div className="text-5xl font-bold print:text-3xl">{build.spoke_length_left}mm</div>
+                  <div className="text-scenic-400 text-sm mt-1 print:mt-0">{build.cross_pattern_left} cross</div>
                 </div>
                 <div>
                   <div className="text-scenic-400 text-sm">Right / Drive Side</div>
-                  <div className="text-5xl font-bold">{build.spoke_length_right}mm</div>
-                  <div className="text-scenic-400 text-sm mt-1">{build.cross_pattern_right} cross</div>
+                  <div className="text-5xl font-bold print:text-3xl">{build.spoke_length_right}mm</div>
+                  <div className="text-scenic-400 text-sm mt-1 print:mt-0">{build.cross_pattern_right} cross</div>
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t border-scenic-700 text-center">
+              <div className="mt-4 pt-4 border-t border-scenic-700 text-center print:mt-2 print:pt-2 print:text-xs">
                 <span className="text-scenic-300">{build.spoke_count} spokes total</span>
                 <span className="text-scenic-500 mx-2">|</span>
                 <span className="text-scenic-300">{build.spoke_count / 2} per side</span>
@@ -208,9 +207,9 @@ export default function BuildSheetPage() {
 
             {/* Build Analysis */}
             {build.tension_percent_left && (
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-scenic-500 mb-3">BUILD ANALYSIS</h3>
-                <table className="w-full text-sm border border-scenic-200 rounded-lg overflow-hidden">
+              <div className="mb-6 print:mb-2">
+                <h3 className="text-sm font-medium text-scenic-500 mb-3 print:mb-1 print:text-xs">BUILD ANALYSIS</h3>
+                <table className="w-full text-sm border border-scenic-200 rounded-lg overflow-hidden print:text-xs">
                   <thead className="bg-scenic-50">
                     <tr>
                       <th className="text-left py-2 px-3 font-medium text-scenic-600"></th>
@@ -250,14 +249,14 @@ export default function BuildSheetPage() {
             )}
 
             {/* Components */}
-            <div className="grid grid-cols-2 gap-6 mb-6">
+            <div className="grid grid-cols-2 gap-6 mb-6 print:gap-3 print:mb-3">
               {/* Rim */}
-              <div className="border border-scenic-200 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-scenic-500 mb-3">RIM</h3>
-                <div className="font-semibold text-scenic-900 mb-3">
+              <div className="border border-scenic-200 rounded-lg p-4 print:p-2">
+                <h3 className="text-sm font-medium text-scenic-500 mb-3 print:mb-1 print:text-xs">RIM</h3>
+                <div className="font-semibold text-scenic-900 mb-3 print:mb-1 print:text-sm">
                   {build.rim.manufacturer} {build.rim.model}
                 </div>
-                <table className="w-full text-sm">
+                <table className="w-full text-sm print:text-xs">
                   <tbody>
                     <tr className="border-b border-scenic-100">
                       <td className="py-1 text-scenic-600">ERD</td>
@@ -293,15 +292,15 @@ export default function BuildSheetPage() {
               </div>
 
               {/* Hub */}
-              <div className="border border-scenic-200 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-scenic-500 mb-3">HUB</h3>
-                <div className="font-semibold text-scenic-900 mb-1">
+              <div className="border border-scenic-200 rounded-lg p-4 print:p-2">
+                <h3 className="text-sm font-medium text-scenic-500 mb-3 print:mb-1 print:text-xs">HUB</h3>
+                <div className="font-semibold text-scenic-900 mb-1 print:text-sm">
                   {build.hub.manufacturer} {build.hub.model}
                 </div>
                 {build.hub.position && (
-                  <div className="text-sm text-scenic-600 capitalize mb-3">{build.hub.position}</div>
+                  <div className="text-sm text-scenic-600 capitalize mb-3 print:mb-1 print:text-xs">{build.hub.position}</div>
                 )}
-                <table className="w-full text-sm">
+                <table className="w-full text-sm print:text-xs">
                   <thead>
                     <tr className="border-b border-scenic-200">
                       <th className="py-1 text-left text-scenic-500 font-medium"></th>
@@ -339,38 +338,38 @@ export default function BuildSheetPage() {
             </div>
 
             {/* Customer Notes */}
-            <div className="mb-6 p-4 border border-scenic-200 rounded-lg">
-              <h3 className="text-sm font-medium text-scenic-500 mb-2">Notes</h3>
+            <div className="mb-6 p-4 border border-scenic-200 rounded-lg print:mb-2 print:p-2">
+              <h3 className="text-sm font-medium text-scenic-500 mb-2 print:mb-1 print:text-xs">Notes</h3>
               <textarea
                 value={customerNotes}
                 onChange={(e) => handleNotesChange('customer', e.target.value)}
                 placeholder="Notes for the customer..."
-                className="w-full min-h-20 text-scenic-700 bg-transparent resize-none focus:outline-none print:border-none"
+                className="w-full min-h-20 text-scenic-700 bg-transparent resize-none focus:outline-none print:border-none print:min-h-0 print:text-xs"
                 rows={3}
               />
             </div>
 
             {/* Internal Notes Section */}
-            <div className="mb-8">
-              <h3 className="text-sm font-medium text-scenic-500 mb-2">Internal Notes</h3>
-              <div className="border border-scenic-200 rounded-lg p-4">
+            <div className="mb-8 print:mb-2">
+              <h3 className="text-sm font-medium text-scenic-500 mb-2 print:mb-1 print:text-xs">Internal Notes</h3>
+              <div className="border border-scenic-200 rounded-lg p-4 print:p-2">
                 <textarea
                   value={internalNotes}
                   onChange={(e) => handleNotesChange('internal', e.target.value)}
                   placeholder="Internal shop notes..."
-                  className="w-full min-h-24 text-scenic-700 bg-transparent resize-none focus:outline-none print:border-none"
+                  className="w-full min-h-24 text-scenic-700 bg-transparent resize-none focus:outline-none print:border-none print:min-h-0 print:text-xs"
                   rows={4}
                 />
               </div>
             </div>
 
             {/* Footer */}
-            <div className="mt-auto pt-6 border-t border-scenic-200 flex justify-between items-end text-sm text-scenic-500">
+            <div className="mt-auto pt-6 border-t border-scenic-200 flex justify-between items-end text-sm text-scenic-500 print:pt-2 print:text-xs">
               <div>
                 <div>Built by {build.created_by.name}</div>
-                <div className="text-xs">Build #{build.id}</div>
+                <div className="text-xs print:text-[10px]">Build #{build.id}</div>
               </div>
-              <div className="text-right text-xs">
+              <div className="text-right text-xs print:text-[10px]">
                 <div>spokecalc.i.scenicroutes.fm</div>
               </div>
             </div>

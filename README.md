@@ -35,17 +35,62 @@ docker-compose up -d
 docker-compose exec backend python scripts/import_freespoke.py
 ```
 
+This imports:
+- ~60 sample rims (Velocity, DT Swiss, H Plus Son, Mavic, WTB, etc.)
+- ~45 sample hubs (Shimano, DT Swiss, Chris King, Hope, etc.)
+- Additional data scraped from Freespoke database (if accessible)
+
+There's also a Spocalc import script (requires downloading the Excel file first):
+```bash
+# Download spocalc-2022a.xlsm from https://www.sheldonbrown.com/rinard/spocalc.htm
+# Place it in backend/scripts/
+docker-compose exec backend python scripts/import_spocalc.py
+```
+
 ### 5. Access the app
 
 Open http://localhost:3333 (or https://spokecalc.i.scenicroutes.fm once tunnel is configured)
 
-## Deployment on vm-docker-01
+## Deployment
+
+The app is deployed to `ScenicRoutesFM` server at `/opt/spoke-calc`.
+
+### Deploy changes
+
+```bash
+./deploy.sh        # Pull and rebuild
+./deploy.sh --build  # Full rebuild (no cache)
+```
+
+### Running commands on production
+
+SSH into server and run docker-compose exec:
+
+```bash
+ssh ScenicRoutesFM
+cd /opt/spoke-calc
+
+# Import/refresh reference data
+docker compose exec backend python scripts/import_freespoke.py
+
+# Run database migrations
+docker compose exec backend alembic upgrade head
+
+# Check logs
+docker compose logs -f backend
+
+# Restart services
+docker compose restart
+```
+
+### Initial server setup
 
 1. Clone repo to `/opt/spoke-calc`
 2. Copy logo file to `frontend/public/logo.png`
 3. Create `.env` from `.env.example`
-4. Run `docker-compose up -d`
-5. Configure Cloudflare tunnel to point to `localhost:3333`
+4. Run `docker compose up -d`
+5. Import reference data (see above)
+6. Configure Cloudflare tunnel to point to `localhost:3333`
 
 ## Tech Stack
 
