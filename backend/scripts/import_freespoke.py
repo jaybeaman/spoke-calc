@@ -62,9 +62,14 @@ def scrape_rims_with_playwright(db, browser, max_pages=50):
         print(f"  Found {len(rows)} rows on page {page_num}")
 
         rows_processed = 0
-        for row in rows:
+        skipped_short = 0
+        skipped_empty = 0
+        for idx, row in enumerate(rows):
             cells = row.query_selector_all("td")
             if len(cells) < 8:
+                skipped_short += 1
+                if idx < 3:
+                    print(f"    Row {idx}: only {len(cells)} cells")
                 continue
 
             try:
@@ -78,7 +83,11 @@ def scrape_rims_with_playwright(db, browser, max_pages=50):
                 inner_width_text = cells[7].inner_text().strip() if len(cells) > 7 else ""
                 weight_text = cells[9].inner_text().strip() if len(cells) > 9 else ""
 
+                if idx < 3:
+                    print(f"    Row {idx}: {manufacturer} / {model} / ERD={erd_text}")
+
                 if not manufacturer or not model or not erd_text:
+                    skipped_empty += 1
                     continue
 
                 # Check if already exists
@@ -144,9 +153,10 @@ def scrape_rims_with_playwright(db, browser, max_pages=50):
                 continue
 
         db.commit()
-        print(f"  Page {page_num} complete, {total_imported} rims imported so far")
+        print(f"  Page {page_num} complete: {total_imported} imported, {skipped_short} skipped (short), {skipped_empty} skipped (empty)")
 
-        if rows_processed == 0:
+        if rows_processed == 0 and skipped_short == len(rows):
+            print("  All rows skipped (probably wrong page structure), stopping")
             break
 
         page_num += 1
