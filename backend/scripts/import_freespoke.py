@@ -54,25 +54,17 @@ def scrape_rims(db, limit_pages=None):
         # Find the table - try different selectors
         table = soup.find("table", class_="table") or soup.find("table")
         if not table:
-            print("  No table found, stopping")
-            # Debug: print first 500 chars of HTML to see what we're getting
-            print(f"  HTML preview: {response.text[:500]}")
+            print("  No table found (site may use JavaScript rendering)")
             break
 
-        # Get all rows - both thead and tbody
+        # Get all rows - skip header rows (those with th elements)
         all_rows = table.find_all("tr")
-        print(f"  Found {len(all_rows)} total tr elements")
-
-        # Skip header row(s) - rows with th elements
         rows = [r for r in all_rows if r.find("td")]
 
-        if not rows:
-            print("  No data rows with <td> found, stopping")
-            # Debug: show table structure
-            print(f"  Table classes: {table.get('class')}")
-            print(f"  Table children: {[child.name for child in table.children if hasattr(child, 'name')]}")
-            if all_rows:
-                print(f"  First row HTML: {str(all_rows[0])[:200]}")
+        # Freespoke uses Blazor/JS to load data - if we only get 1 row, it's the loading placeholder
+        if len(rows) <= 1:
+            print("  Site uses JavaScript rendering - scraping not available")
+            print("  Using sample data instead")
             break
 
         print(f"  Found {len(rows)} data rows on page {page}")
@@ -241,18 +233,17 @@ def scrape_hubs(db, limit_pages=None):
         # Find the table - try different selectors
         table = soup.find("table", class_="table") or soup.find("table")
         if not table:
-            print("  No table found, stopping")
+            print("  No table found (site may use JavaScript rendering)")
             break
 
-        # Get all rows - both thead and tbody
+        # Get all rows - skip header rows (those with th elements)
         all_rows = table.find_all("tr")
-        print(f"  Found {len(all_rows)} total tr elements")
-
-        # Skip header row(s) - rows with th elements
         rows = [r for r in all_rows if r.find("td")]
 
-        if not rows:
-            print("  No data rows with <td> found, stopping")
+        # Freespoke uses Blazor/JS to load data - if we only get 1 row, it's the loading placeholder
+        if len(rows) <= 1:
+            print("  Site uses JavaScript rendering - scraping not available")
+            print("  Using sample data instead")
             break
 
         print(f"  Found {len(rows)} data rows on page {page}")

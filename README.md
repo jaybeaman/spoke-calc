@@ -6,7 +6,7 @@ Custom spoke length calculator for **Scenic Routes Community Bicycle Center**.
 
 - Spoke length calculator with rim and hub database
 - User authentication with measurement attribution ("measured by John, June 2025")
-- Merged database: Freespoke reference data + your own measured components
+- Reference database with common rims and hubs + your own measured components
 - Printable build sheets for customers
 - Build history
 
@@ -35,12 +35,11 @@ docker-compose up -d
 docker-compose exec backend python scripts/import_freespoke.py
 ```
 
-This imports:
-- ~60 sample rims (Velocity, DT Swiss, H Plus Son, Mavic, WTB, etc.)
-- ~45 sample hubs (Shimano, DT Swiss, Chris King, Hope, etc.)
-- Additional data scraped from Freespoke database (if accessible)
+This imports ~60 sample rims (Velocity, DT Swiss, H Plus Son, Mavic, WTB, etc.) and ~45 sample hubs (Shimano, DT Swiss, Chris King, Hope, etc.).
 
-There's also a Spocalc import script (requires downloading the Excel file first):
+**Note:** The Freespoke website (kstoerz.com/freespoke) uses JavaScript rendering, so web scraping doesn't work. The script falls back to built-in sample data.
+
+For more data, use the Spocalc import (requires downloading the Excel file):
 ```bash
 # Download spocalc-2022a.xlsm from https://www.sheldonbrown.com/rinard/spocalc.htm
 # Place it in backend/scripts/
