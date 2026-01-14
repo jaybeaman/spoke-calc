@@ -32,7 +32,7 @@ except ImportError:
     print("To enable web scraping: pip install playwright && playwright install chromium")
 
 
-def scrape_rims_with_playwright(db, browser, max_pages=20):
+def scrape_rims_with_playwright(db, browser, max_pages=50):
     """Scrape rim data from Freespoke using Playwright."""
     print("Scraping rims from Freespoke...")
 
@@ -47,8 +47,8 @@ def scrape_rims_with_playwright(db, browser, max_pages=20):
 
         try:
             page.goto(url, wait_until="networkidle", timeout=30000)
-            # Wait for table to have data rows
-            page.wait_for_selector("table tbody tr td", timeout=10000)
+            # Give Blazor a moment to render after network idle
+            page.wait_for_timeout(1000)
         except Exception as e:
             print(f"  Error loading page {page_num}: {e}")
             break
@@ -189,7 +189,7 @@ def parse_lr_value(text):
         return None, None
 
 
-def scrape_hubs_with_playwright(db, browser, max_pages=20):
+def scrape_hubs_with_playwright(db, browser, max_pages=50):
     """Scrape hub data from Freespoke using Playwright."""
     print("Scraping hubs from Freespoke...")
 
@@ -204,7 +204,8 @@ def scrape_hubs_with_playwright(db, browser, max_pages=20):
 
         try:
             page.goto(url, wait_until="networkidle", timeout=30000)
-            page.wait_for_selector("table tbody tr td", timeout=10000)
+            # Give Blazor a moment to render after network idle
+            page.wait_for_timeout(1000)
         except Exception as e:
             print(f"  Error loading page {page_num}: {e}")
             break
