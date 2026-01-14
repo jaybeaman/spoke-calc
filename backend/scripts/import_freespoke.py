@@ -79,7 +79,9 @@ def scrape_rims_with_playwright(db, browser, max_pages=50):
                 weight_text = cells[10].inner_text().strip() if len(cells) > 10 else ""
 
                 if idx < 3:
-                    print(f"    Row {idx}: {manufacturer} / {model} / ERD={erd_text}")
+                    # Debug: show raw HTML for first rows
+                    raw_html = cells[1].inner_html() if len(cells) > 1 else "N/A"
+                    print(f"    Row {idx}: mfr='{manufacturer}' model='{model}' ERD='{erd_text}' html='{raw_html[:100]}'")
 
                 if not manufacturer or not model or not erd_text:
                     skipped_empty += 1
