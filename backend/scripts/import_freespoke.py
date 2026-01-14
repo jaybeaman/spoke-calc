@@ -51,16 +51,24 @@ def scrape_rims(db, limit_pages=None):
 
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Find the table rows
-        table = soup.find("table")
+        # Find the table - try different selectors
+        table = soup.find("table", class_="table") or soup.find("table")
         if not table:
             print("  No table found, stopping")
             break
 
-        rows = table.find_all("tr")[1:]  # Skip header row
+        # Get tbody rows if present, otherwise get all tr
+        tbody = table.find("tbody")
+        if tbody:
+            rows = tbody.find_all("tr")
+        else:
+            rows = table.find_all("tr")[1:]  # Skip header row
+
         if not rows:
-            print("  No more rows found, stopping")
+            print("  No data rows found, stopping")
             break
+
+        print(f"  Found {len(rows)} rows on page {page}")
 
         rows_processed = 0
         for row in rows:
@@ -223,16 +231,24 @@ def scrape_hubs(db, limit_pages=None):
 
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Find the table rows
-        table = soup.find("table")
+        # Find the table - try different selectors
+        table = soup.find("table", class_="table") or soup.find("table")
         if not table:
             print("  No table found, stopping")
             break
 
-        rows = table.find_all("tr")[1:]  # Skip header row
+        # Get tbody rows if present, otherwise get all tr
+        tbody = table.find("tbody")
+        if tbody:
+            rows = tbody.find_all("tr")
+        else:
+            rows = table.find_all("tr")[1:]  # Skip header row
+
         if not rows:
-            print("  No more rows found, stopping")
+            print("  No data rows found, stopping")
             break
+
+        print(f"  Found {len(rows)} rows on page {page}")
 
         rows_processed = 0
         for row in rows:
