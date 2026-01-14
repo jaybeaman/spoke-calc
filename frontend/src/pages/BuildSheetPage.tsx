@@ -162,7 +162,7 @@ export default function BuildSheetPage() {
             {/* Header */}
             <div className="flex items-start justify-between border-b-2 border-scenic-900 pb-6 mb-6 print:pb-3 print:mb-3">
               <div className="flex items-center gap-4 print:gap-2">
-                <img src="/logo.png" alt="Scenic Routes" className="h-16 w-16 print:h-10 print:w-10" />
+                <img src="/sr-logo.png" alt="Scenic Routes" className="h-16 w-16 print:h-10 print:w-10" />
                 <div>
                   <h1 className="text-xl font-bold text-scenic-900 print:text-base">Scenic Routes</h1>
                   <p className="text-sm text-scenic-600 print:text-xs">Community Bicycle Center</p>
