@@ -79,8 +79,6 @@ def scrape_rims_with_playwright(db, browser, max_pages=50):
                 inner_width_text = (cells[8].text_content() or "").strip() if len(cells) > 8 else ""
                 weight_text = (cells[10].text_content() or "").strip() if len(cells) > 10 else ""
 
-                if idx < 3:
-                    print(f"    Row {idx}: mfr='{manufacturer}' model='{model}' ERD='{erd_text}'")
 
                 if not manufacturer or not model or not erd_text:
                     skipped_empty += 1
@@ -149,18 +147,17 @@ def scrape_rims_with_playwright(db, browser, max_pages=50):
                 continue
 
         db.commit()
-        print(f"  Page {page_num} complete: {total_imported} total imported, {skipped_empty} skipped (empty fields)")
+        print(f"  Page {page_num}: {total_imported} new rims so far")
 
-        # Stop if no rows processed and nothing imported (probably reached end or no more new data)
-        if rows_processed == 0:
-            print("  No new rows processed, stopping")
+        # Stop if this page had fewer rows than usual (last page)
+        if len(rows) < 40:
             break
 
         page_num += 1
         time.sleep(0.3)
 
     context.close()
-    print(f"Finished importing {total_imported} rims")
+    print(f"Imported {total_imported} new rims")
     return total_imported
 
 
@@ -241,8 +238,6 @@ def scrape_hubs_with_playwright(db, browser, max_pages=50):
                 flange_dia_text = (cells[8].text_content() or "").strip() if len(cells) > 8 else ""
                 offset_text = (cells[10].text_content() or "").strip() if len(cells) > 10 else ""
 
-                if idx < 3:
-                    print(f"    Row {idx}: mfr='{manufacturer}' model='{model}' pos='{position_text}'")
 
                 if not manufacturer or not model:
                     skipped_empty += 1
@@ -290,18 +285,17 @@ def scrape_hubs_with_playwright(db, browser, max_pages=50):
                 continue
 
         db.commit()
-        print(f"  Page {page_num} complete: {total_imported} total imported, {skipped_empty} skipped (empty fields)")
+        print(f"  Page {page_num}: {total_imported} new hubs so far")
 
-        # Stop if no rows processed (probably reached end or no more new data)
-        if rows_processed == 0:
-            print("  No new rows processed, stopping")
+        # Stop if this page had fewer rows than usual (last page)
+        if len(rows) < 40:
             break
 
         page_num += 1
         time.sleep(0.3)
 
     context.close()
-    print(f"Finished importing {total_imported} hubs")
+    print(f"Imported {total_imported} new hubs")
     return total_imported
 
 
