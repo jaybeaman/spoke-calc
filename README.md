@@ -35,11 +35,9 @@ docker-compose up -d
 docker-compose exec backend python scripts/import_freespoke.py
 ```
 
-This imports ~60 sample rims (Velocity, DT Swiss, H Plus Son, Mavic, WTB, etc.) and ~45 sample hubs (Shimano, DT Swiss, Chris King, Hope, etc.).
+This scrapes rim and hub data from Freespoke (kstoerz.com/freespoke) using Playwright, plus includes ~60 sample rims and ~48 sample hubs as fallback. First run may take a few minutes as it fetches hundreds of components.
 
-**Note:** The Freespoke website (kstoerz.com/freespoke) uses JavaScript rendering, so web scraping doesn't work. The script falls back to built-in sample data.
-
-For more data, use the Spocalc import (requires downloading the Excel file):
+For additional data, use the Spocalc import (requires downloading the Excel file):
 ```bash
 # Download spocalc-2022a.xlsm from https://www.sheldonbrown.com/rinard/spocalc.htm
 # Place it in backend/scripts/

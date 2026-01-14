@@ -2,13 +2,13 @@
 """
 Import rim and hub data from Freespoke database.
 Run this after initial database setup to populate reference data.
+
+Uses Playwright for JavaScript-rendered pages (Freespoke uses Blazor).
 """
 
 import sys
 import os
 import time
-import httpx
-from bs4 import BeautifulSoup
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,74 +21,63 @@ from app.models.hub import Hub
 Base.metadata.create_all(bind=engine)
 
 BASE_URL = "https://kstoerz.com/freespoke"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; SpokeCalc/1.0; Scenic Routes Bicycle Center)"
-}
+
+# Try to import Playwright, fall back to sample data only if not available
+try:
+    from playwright.sync_api import sync_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+    print("Playwright not installed - will use sample data only")
+    print("To enable web scraping: pip install playwright && playwright install chromium")
 
 
-def scrape_rims(db, limit_pages=None):
-    """Scrape rim data from Freespoke."""
+def scrape_rims_with_playwright(db, browser, max_pages=20):
+    """Scrape rim data from Freespoke using Playwright."""
     print("Scraping rims from Freespoke...")
 
-    page = 1
+    page_num = 1
     total_imported = 0
-    max_pages = 20  # Safety limit
+    context = browser.new_context()
+    page = context.new_page()
 
-    while page <= max_pages:
-        if limit_pages and page > limit_pages:
-            break
-
-        # Freespoke uses ?Page= (capital P) for pagination
-        url = f"{BASE_URL}/rims?Page={page}"
-        print(f"  Fetching page {page}...")
+    while page_num <= max_pages:
+        url = f"{BASE_URL}/rims?Page={page_num}"
+        print(f"  Fetching page {page_num}...")
 
         try:
-            response = httpx.get(url, headers=HEADERS, timeout=30)
-            response.raise_for_status()
+            page.goto(url, wait_until="networkidle", timeout=30000)
+            # Wait for table to have data rows
+            page.wait_for_selector("table tbody tr td", timeout=10000)
         except Exception as e:
-            print(f"  Error fetching page {page}: {e}")
+            print(f"  Error loading page {page_num}: {e}")
             break
 
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        # Find the table - try different selectors
-        table = soup.find("table", class_="table") or soup.find("table")
-        if not table:
-            print("  No table found (site may use JavaScript rendering)")
+        # Get all data rows
+        rows = page.query_selector_all("table tbody tr")
+        if not rows:
+            print("  No data rows found, stopping")
             break
 
-        # Get all rows - skip header rows (those with th elements)
-        all_rows = table.find_all("tr")
-        rows = [r for r in all_rows if r.find("td")]
-
-        # Freespoke uses Blazor/JS to load data - if we only get 1 row, it's the loading placeholder
-        if len(rows) <= 1:
-            print("  Site uses JavaScript rendering - scraping not available")
-            print("  Using sample data instead")
-            break
-
-        print(f"  Found {len(rows)} data rows on page {page}")
+        print(f"  Found {len(rows)} rows on page {page_num}")
 
         rows_processed = 0
         for row in rows:
-            cells = row.find_all("td")
+            cells = row.query_selector_all("td")
             if len(cells) < 8:
                 continue
 
             try:
-                # Freespoke columns: Manufacturer, Model, ISO, ERD, Offset drilling, Offset (avg), Outer width, Inner width, Height, Weight
-                manufacturer = cells[0].get_text(strip=True)
-                model = cells[1].get_text(strip=True)
-                iso_size_text = cells[2].get_text(strip=True)
-                erd_text = cells[3].get_text(strip=True)
-                # cells[4] is "Offset drilling" (e.g., "11 L, 11 R") - skip
-                offset_text = cells[5].get_text(strip=True) if len(cells) > 5 else "0"  # Offset (avg)
-                outer_width_text = cells[6].get_text(strip=True) if len(cells) > 6 else ""
-                inner_width_text = cells[7].get_text(strip=True) if len(cells) > 7 else ""
-                # cells[8] is height - skip
-                weight_text = cells[9].get_text(strip=True) if len(cells) > 9 else ""
+                # Freespoke columns: Manufacturer, Model, ISO, ERD, Offset drilling, Offset (avg), Outer width, Inner width, Height, Weight, Action
+                manufacturer = cells[0].inner_text().strip()
+                model = cells[1].inner_text().strip()
+                iso_size_text = cells[2].inner_text().strip()
+                erd_text = cells[3].inner_text().strip()
+                offset_text = cells[5].inner_text().strip() if len(cells) > 5 else "0"
+                outer_width_text = cells[6].inner_text().strip() if len(cells) > 6 else ""
+                inner_width_text = cells[7].inner_text().strip() if len(cells) > 7 else ""
+                weight_text = cells[9].inner_text().strip() if len(cells) > 9 else ""
 
-                # Skip if missing critical data
                 if not manufacturer or not model or not erd_text:
                     continue
 
@@ -106,31 +95,26 @@ def scrape_rims(db, limit_pages=None):
                 # Parse numeric values
                 iso_size = int(iso_size_text) if iso_size_text.isdigit() else None
 
-                # Parse ERD - handle formats like "601.8"
                 try:
                     erd = float(erd_text.replace(",", "."))
                 except (ValueError, AttributeError):
                     erd = None
 
-                # Parse offset
                 try:
                     offset = float(offset_text.replace(",", ".")) if offset_text and offset_text != "-" else 0
                 except ValueError:
                     offset = 0
 
-                # Parse outer width
                 try:
                     outer_width = float(outer_width_text.replace(",", ".")) if outer_width_text and outer_width_text != "-" else None
                 except ValueError:
                     outer_width = None
 
-                # Parse inner width
                 try:
                     inner_width = float(inner_width_text.replace(",", ".")) if inner_width_text and inner_width_text != "-" else None
                 except ValueError:
                     inner_width = None
 
-                # Parse weight - remove "g" suffix
                 try:
                     weight_clean = weight_text.replace("g", "").replace(",", ".").strip()
                     weight = float(weight_clean) if weight_clean and weight_clean != "-" else None
@@ -160,15 +144,15 @@ def scrape_rims(db, limit_pages=None):
                 continue
 
         db.commit()
-        print(f"  Page {page} complete, {total_imported} rims imported so far")
+        print(f"  Page {page_num} complete, {total_imported} rims imported so far")
 
-        # If we didn't process any rows on this page, we've gone past the last page
         if rows_processed == 0:
             break
 
-        page += 1
-        time.sleep(0.5)  # Be polite
+        page_num += 1
+        time.sleep(0.3)
 
+    context.close()
     print(f"Finished importing {total_imported} rims")
     return total_imported
 
@@ -205,78 +189,57 @@ def parse_lr_value(text):
         return None, None
 
 
-def scrape_hubs(db, limit_pages=None):
-    """Scrape hub data from Freespoke."""
+def scrape_hubs_with_playwright(db, browser, max_pages=20):
+    """Scrape hub data from Freespoke using Playwright."""
     print("Scraping hubs from Freespoke...")
 
-    page = 1
+    page_num = 1
     total_imported = 0
-    max_pages = 20  # Safety limit
+    context = browser.new_context()
+    page = context.new_page()
 
-    while page <= max_pages:
-        if limit_pages and page > limit_pages:
-            break
-
-        # Freespoke uses ?Page= (capital P) for pagination
-        url = f"{BASE_URL}/hubs?Page={page}"
-        print(f"  Fetching page {page}...")
+    while page_num <= max_pages:
+        url = f"{BASE_URL}/hubs?Page={page_num}"
+        print(f"  Fetching page {page_num}...")
 
         try:
-            response = httpx.get(url, headers=HEADERS, timeout=30)
-            response.raise_for_status()
+            page.goto(url, wait_until="networkidle", timeout=30000)
+            page.wait_for_selector("table tbody tr td", timeout=10000)
         except Exception as e:
-            print(f"  Error fetching page {page}: {e}")
+            print(f"  Error loading page {page_num}: {e}")
             break
 
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        # Find the table - try different selectors
-        table = soup.find("table", class_="table") or soup.find("table")
-        if not table:
-            print("  No table found (site may use JavaScript rendering)")
+        rows = page.query_selector_all("table tbody tr")
+        if not rows:
+            print("  No data rows found, stopping")
             break
 
-        # Get all rows - skip header rows (those with th elements)
-        all_rows = table.find_all("tr")
-        rows = [r for r in all_rows if r.find("td")]
-
-        # Freespoke uses Blazor/JS to load data - if we only get 1 row, it's the loading placeholder
-        if len(rows) <= 1:
-            print("  Site uses JavaScript rendering - scraping not available")
-            print("  Using sample data instead")
-            break
-
-        print(f"  Found {len(rows)} data rows on page {page}")
+        print(f"  Found {len(rows)} rows on page {page_num}")
 
         rows_processed = 0
         for row in rows:
-            cells = row.find_all("td")
+            cells = row.query_selector_all("td")
             if len(cells) < 6:
                 continue
 
             try:
                 # Freespoke hub columns: Manufacturer, Model, Position, OLN, Axle Type, Brake Type,
                 #                        Drive Type, Flange Diameter, Mid-flange Offset, Weight
-                manufacturer = cells[0].get_text(strip=True)
-                model = cells[1].get_text(strip=True)
-                position_text = cells[2].get_text(strip=True).lower() if len(cells) > 2 else ""
+                manufacturer = cells[0].inner_text().strip()
+                model = cells[1].inner_text().strip()
+                position_text = cells[2].inner_text().strip().lower() if len(cells) > 2 else ""
+                flange_dia_text = cells[7].inner_text().strip() if len(cells) > 7 else ""
+                offset_text = cells[8].inner_text().strip() if len(cells) > 8 else ""
 
-                # Flange diameter is in column 7 (index 7), Mid-flange offset is column 8 (index 8)
-                flange_dia_text = cells[7].get_text(strip=True) if len(cells) > 7 else ""
-                offset_text = cells[8].get_text(strip=True) if len(cells) > 8 else ""
-
-                # Skip if missing critical data
                 if not manufacturer or not model:
                     continue
 
-                # Normalize position
                 position = None
                 if "front" in position_text:
                     position = "front"
                 elif "rear" in position_text:
                     position = "rear"
 
-                # Check if already exists
                 existing = db.query(Hub).filter(
                     Hub.manufacturer == manufacturer,
                     Hub.model == model,
@@ -288,13 +251,9 @@ def scrape_hubs(db, limit_pages=None):
                     rows_processed += 1
                     continue
 
-                # Parse flange diameter - may be "56 L, 47 R" format
                 flange_left, flange_right = parse_lr_value(flange_dia_text)
-
-                # Parse offset - may be asymmetric like "-7.6 L, 35.2 R"
                 offset_left, offset_right = parse_lr_value(offset_text)
 
-                # Need at least flange or offset data
                 if flange_left is None and offset_left is None:
                     continue
 
@@ -317,15 +276,15 @@ def scrape_hubs(db, limit_pages=None):
                 continue
 
         db.commit()
-        print(f"  Page {page} complete, {total_imported} hubs imported so far")
+        print(f"  Page {page_num} complete, {total_imported} hubs imported so far")
 
-        # If we didn't process any rows on this page, we've gone past the last page
         if rows_processed == 0:
             break
 
-        page += 1
-        time.sleep(0.5)  # Be polite
+        page_num += 1
+        time.sleep(0.3)
 
+    context.close()
     print(f"Finished importing {total_imported} hubs")
     return total_imported
 
@@ -599,9 +558,26 @@ def main():
         # Always add sample data first (skips duplicates)
         add_sample_data(db)
 
-        # Then try to scrape additional data from Freespoke
-        rims_count = scrape_rims(db)  # Get all pages
-        hubs_count = scrape_hubs(db)  # Get all pages
+        # Try to scrape additional data from Freespoke using Playwright
+        if PLAYWRIGHT_AVAILABLE:
+            print("\nAttempting to scrape Freespoke with Playwright...")
+            try:
+                with sync_playwright() as p:
+                    print("Launching browser...")
+                    browser = p.chromium.launch(headless=True)
+
+                    scrape_rims_with_playwright(db, browser)
+                    scrape_hubs_with_playwright(db, browser)
+
+                    browser.close()
+            except Exception as e:
+                print(f"Playwright scraping failed: {e}")
+                print("Using sample data only.")
+        else:
+            print("\nPlaywright not available - using sample data only.")
+            print("To enable full scraping:")
+            print("  pip install playwright")
+            print("  playwright install chromium")
 
         print("\nImport complete!")
         print(f"  Total rims in database: {db.query(Rim).count()}")
