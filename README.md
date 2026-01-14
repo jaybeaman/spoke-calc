@@ -35,7 +35,7 @@ docker-compose up -d
 docker-compose exec backend python scripts/import_freespoke.py
 ```
 
-This scrapes rim and hub data from Freespoke (kstoerz.com/freespoke) using Playwright, plus includes ~60 sample rims and ~48 sample hubs as fallback. First run may take a few minutes as it fetches hundreds of components.
+First run scrapes ~580 rims and ~720 hubs from Freespoke using Playwright (takes a few minutes). Subsequent runs skip scraping since data already exists. Use `--force-scrape` to refresh.
 
 For additional data, use the Spocalc import (requires downloading the Excel file):
 ```bash
