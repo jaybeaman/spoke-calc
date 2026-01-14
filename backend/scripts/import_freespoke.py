@@ -53,35 +53,30 @@ def scrape_rims_with_playwright(db, browser, max_pages=50):
             print(f"  Error loading page {page_num}: {e}")
             break
 
-        # Get all data rows
-        rows = page.query_selector_all("table tbody tr")
+        # Get all data rows - filter to rows with enough cells
+        all_rows = page.query_selector_all("table tbody tr")
+        rows = [r for r in all_rows if len(r.query_selector_all("td")) >= 10]
         if not rows:
-            print("  No data rows found, stopping")
+            print(f"  No valid data rows found (had {len(all_rows)} total tr elements), stopping")
             break
 
-        print(f"  Found {len(rows)} rows on page {page_num}")
+        print(f"  Found {len(rows)} data rows on page {page_num}")
 
         rows_processed = 0
-        skipped_short = 0
         skipped_empty = 0
         for idx, row in enumerate(rows):
             cells = row.query_selector_all("td")
-            if len(cells) < 8:
-                skipped_short += 1
-                if idx < 3:
-                    print(f"    Row {idx}: only {len(cells)} cells")
-                continue
 
             try:
-                # Freespoke columns: Manufacturer, Model, ISO, ERD, Offset drilling, Offset (avg), Outer width, Inner width, Height, Weight, Action
-                manufacturer = cells[0].inner_text().strip()
-                model = cells[1].inner_text().strip()
-                iso_size_text = cells[2].inner_text().strip()
-                erd_text = cells[3].inner_text().strip()
-                offset_text = cells[5].inner_text().strip() if len(cells) > 5 else "0"
-                outer_width_text = cells[6].inner_text().strip() if len(cells) > 6 else ""
-                inner_width_text = cells[7].inner_text().strip() if len(cells) > 7 else ""
-                weight_text = cells[9].inner_text().strip() if len(cells) > 9 else ""
+                # Freespoke columns: [0]Image, [1]Manufacturer, [2]Model, [3]ISO, [4]ERD, [5]Offset drilling, [6]Offset (avg), [7]Outer width, [8]Inner width, [9]Height, [10]Weight, [11]Action
+                manufacturer = cells[1].inner_text().strip()
+                model = cells[2].inner_text().strip()
+                iso_size_text = cells[3].inner_text().strip()
+                erd_text = cells[4].inner_text().strip()
+                offset_text = cells[6].inner_text().strip() if len(cells) > 6 else "0"
+                outer_width_text = cells[7].inner_text().strip() if len(cells) > 7 else ""
+                inner_width_text = cells[8].inner_text().strip() if len(cells) > 8 else ""
+                weight_text = cells[10].inner_text().strip() if len(cells) > 10 else ""
 
                 if idx < 3:
                     print(f"    Row {idx}: {manufacturer} / {model} / ERD={erd_text}")
@@ -153,10 +148,11 @@ def scrape_rims_with_playwright(db, browser, max_pages=50):
                 continue
 
         db.commit()
-        print(f"  Page {page_num} complete: {total_imported} imported, {skipped_short} skipped (short), {skipped_empty} skipped (empty)")
+        print(f"  Page {page_num} complete: {total_imported} total imported, {skipped_empty} skipped (empty fields)")
 
-        if rows_processed == 0 and skipped_short == len(rows):
-            print("  All rows skipped (probably wrong page structure), stopping")
+        # Stop if no rows processed and nothing imported (probably reached end or no more new data)
+        if rows_processed == 0:
+            print("  No new rows processed, stopping")
             break
 
         page_num += 1
@@ -220,29 +216,34 @@ def scrape_hubs_with_playwright(db, browser, max_pages=50):
             print(f"  Error loading page {page_num}: {e}")
             break
 
-        rows = page.query_selector_all("table tbody tr")
+        # Get all data rows - filter to rows with enough cells
+        all_rows = page.query_selector_all("table tbody tr")
+        rows = [r for r in all_rows if len(r.query_selector_all("td")) >= 10]
         if not rows:
-            print("  No data rows found, stopping")
+            print(f"  No valid data rows found (had {len(all_rows)} total tr elements), stopping")
             break
 
-        print(f"  Found {len(rows)} rows on page {page_num}")
+        print(f"  Found {len(rows)} data rows on page {page_num}")
 
         rows_processed = 0
-        for row in rows:
+        skipped_empty = 0
+        for idx, row in enumerate(rows):
             cells = row.query_selector_all("td")
-            if len(cells) < 6:
-                continue
 
             try:
-                # Freespoke hub columns: Manufacturer, Model, Position, OLN, Axle Type, Brake Type,
-                #                        Drive Type, Flange Diameter, Mid-flange Offset, Weight
-                manufacturer = cells[0].inner_text().strip()
-                model = cells[1].inner_text().strip()
-                position_text = cells[2].inner_text().strip().lower() if len(cells) > 2 else ""
-                flange_dia_text = cells[7].inner_text().strip() if len(cells) > 7 else ""
-                offset_text = cells[8].inner_text().strip() if len(cells) > 8 else ""
+                # Freespoke hub columns: [0]Image, [1]Manufacturer, [2]Model, [3]Position, [4]OLN, [5]Axle Type, [6]Brake Type,
+                #                        [7]Drive Type, [8]Flange Diameter, [9]Flange Offsets, [10]Mid-flange Offset, [11]Weight, [12]Action
+                manufacturer = cells[1].inner_text().strip()
+                model = cells[2].inner_text().strip()
+                position_text = cells[3].inner_text().strip().lower()
+                flange_dia_text = cells[8].inner_text().strip() if len(cells) > 8 else ""
+                offset_text = cells[10].inner_text().strip() if len(cells) > 10 else ""
+
+                if idx < 3:
+                    print(f"    Row {idx}: {manufacturer} / {model} / pos={position_text}")
 
                 if not manufacturer or not model:
+                    skipped_empty += 1
                     continue
 
                 position = None
@@ -287,9 +288,11 @@ def scrape_hubs_with_playwright(db, browser, max_pages=50):
                 continue
 
         db.commit()
-        print(f"  Page {page_num} complete, {total_imported} hubs imported so far")
+        print(f"  Page {page_num} complete: {total_imported} total imported, {skipped_empty} skipped (empty fields)")
 
+        # Stop if no rows processed (probably reached end or no more new data)
         if rows_processed == 0:
+            print("  No new rows processed, stopping")
             break
 
         page_num += 1
