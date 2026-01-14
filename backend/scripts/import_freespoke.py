@@ -69,19 +69,18 @@ def scrape_rims_with_playwright(db, browser, max_pages=50):
 
             try:
                 # Freespoke columns: [0]Image, [1]Manufacturer, [2]Model, [3]ISO, [4]ERD, [5]Offset drilling, [6]Offset (avg), [7]Outer width, [8]Inner width, [9]Height, [10]Weight, [11]Action
-                manufacturer = cells[1].inner_text().strip()
-                model = cells[2].inner_text().strip()
-                iso_size_text = cells[3].inner_text().strip()
-                erd_text = cells[4].inner_text().strip()
-                offset_text = cells[6].inner_text().strip() if len(cells) > 6 else "0"
-                outer_width_text = cells[7].inner_text().strip() if len(cells) > 7 else ""
-                inner_width_text = cells[8].inner_text().strip() if len(cells) > 8 else ""
-                weight_text = cells[10].inner_text().strip() if len(cells) > 10 else ""
+                # Use text_content() instead of inner_text() for better compatibility
+                manufacturer = (cells[1].text_content() or "").strip()
+                model = (cells[2].text_content() or "").strip()
+                iso_size_text = (cells[3].text_content() or "").strip()
+                erd_text = (cells[4].text_content() or "").strip()
+                offset_text = (cells[6].text_content() or "").strip() if len(cells) > 6 else "0"
+                outer_width_text = (cells[7].text_content() or "").strip() if len(cells) > 7 else ""
+                inner_width_text = (cells[8].text_content() or "").strip() if len(cells) > 8 else ""
+                weight_text = (cells[10].text_content() or "").strip() if len(cells) > 10 else ""
 
                 if idx < 3:
-                    # Debug: show raw HTML for first rows
-                    raw_html = cells[1].inner_html() if len(cells) > 1 else "N/A"
-                    print(f"    Row {idx}: mfr='{manufacturer}' model='{model}' ERD='{erd_text}' html='{raw_html[:100]}'")
+                    print(f"    Row {idx}: mfr='{manufacturer}' model='{model}' ERD='{erd_text}'")
 
                 if not manufacturer or not model or not erd_text:
                     skipped_empty += 1
@@ -235,14 +234,15 @@ def scrape_hubs_with_playwright(db, browser, max_pages=50):
             try:
                 # Freespoke hub columns: [0]Image, [1]Manufacturer, [2]Model, [3]Position, [4]OLN, [5]Axle Type, [6]Brake Type,
                 #                        [7]Drive Type, [8]Flange Diameter, [9]Flange Offsets, [10]Mid-flange Offset, [11]Weight, [12]Action
-                manufacturer = cells[1].inner_text().strip()
-                model = cells[2].inner_text().strip()
-                position_text = cells[3].inner_text().strip().lower()
-                flange_dia_text = cells[8].inner_text().strip() if len(cells) > 8 else ""
-                offset_text = cells[10].inner_text().strip() if len(cells) > 10 else ""
+                # Use text_content() instead of inner_text() for better compatibility
+                manufacturer = (cells[1].text_content() or "").strip()
+                model = (cells[2].text_content() or "").strip()
+                position_text = (cells[3].text_content() or "").strip().lower()
+                flange_dia_text = (cells[8].text_content() or "").strip() if len(cells) > 8 else ""
+                offset_text = (cells[10].text_content() or "").strip() if len(cells) > 10 else ""
 
                 if idx < 3:
-                    print(f"    Row {idx}: {manufacturer} / {model} / pos={position_text}")
+                    print(f"    Row {idx}: mfr='{manufacturer}' model='{model}' pos='{position_text}'")
 
                 if not manufacturer or not model:
                     skipped_empty += 1
