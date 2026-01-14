@@ -250,6 +250,12 @@ def scrape_hubs_with_playwright(db, browser, max_pages=50):
                 elif "rear" in position_text:
                     position = "rear"
 
+                flange_left, flange_right = parse_lr_value(flange_dia_text)
+                offset_left, offset_right = parse_lr_value(offset_text)
+
+                if flange_left is None and offset_left is None:
+                    continue
+
                 existing = db.query(Hub).filter(
                     Hub.manufacturer == manufacturer,
                     Hub.model == model,
@@ -258,27 +264,25 @@ def scrape_hubs_with_playwright(db, browser, max_pages=50):
                 ).first()
 
                 if existing:
+                    # Update existing hub with correct values
+                    existing.flange_diameter_left = flange_left or 0
+                    existing.flange_diameter_right = flange_right or flange_left or 0
+                    existing.flange_offset_left = abs(offset_left) if offset_left else 0
+                    existing.flange_offset_right = abs(offset_right) if offset_right else (abs(offset_left) if offset_left else 0)
                     rows_processed += 1
-                    continue
-
-                flange_left, flange_right = parse_lr_value(flange_dia_text)
-                offset_left, offset_right = parse_lr_value(offset_text)
-
-                if flange_left is None and offset_left is None:
-                    continue
-
-                hub = Hub(
-                    manufacturer=manufacturer,
-                    model=model,
-                    position=position,
-                    flange_diameter_left=flange_left or 0,
-                    flange_diameter_right=flange_right or flange_left or 0,
-                    flange_offset_left=abs(offset_left) if offset_left else 0,
-                    flange_offset_right=abs(offset_right) if offset_right else (abs(offset_left) if offset_left else 0),
-                    is_reference=True
-                )
-                db.add(hub)
-                total_imported += 1
+                else:
+                    hub = Hub(
+                        manufacturer=manufacturer,
+                        model=model,
+                        position=position,
+                        flange_diameter_left=flange_left or 0,
+                        flange_diameter_right=flange_right or flange_left or 0,
+                        flange_offset_left=abs(offset_left) if offset_left else 0,
+                        flange_offset_right=abs(offset_right) if offset_right else (abs(offset_left) if offset_left else 0),
+                        is_reference=True
+                    )
+                    db.add(hub)
+                    total_imported += 1
                 rows_processed += 1
 
             except Exception as e:
