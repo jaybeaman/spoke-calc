@@ -562,15 +562,25 @@ def add_sample_data(db):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Import rim and hub data")
+    parser.add_argument("--force-scrape", action="store_true", help="Force scraping even if database has data")
+    args = parser.parse_args()
+
     db = SessionLocal()
 
     try:
         # Always add sample data first (skips duplicates)
         add_sample_data(db)
 
-        # Try to scrape additional data from Freespoke using Playwright
-        if PLAYWRIGHT_AVAILABLE:
-            print("\nAttempting to scrape Freespoke with Playwright...")
+        rim_count = db.query(Rim).count()
+        hub_count = db.query(Hub).count()
+
+        # Only scrape if database is mostly empty (just sample data) or --force-scrape is passed
+        should_scrape = args.force_scrape or (rim_count < 100 and hub_count < 100)
+
+        if should_scrape and PLAYWRIGHT_AVAILABLE:
+            print("\nScraping Freespoke with Playwright...")
             try:
                 with sync_playwright() as p:
                     print("Launching browser...")
@@ -583,11 +593,11 @@ def main():
             except Exception as e:
                 print(f"Playwright scraping failed: {e}")
                 print("Using sample data only.")
-        else:
+        elif not should_scrape:
+            print(f"\nDatabase already has {rim_count} rims and {hub_count} hubs.")
+            print("Skipping scrape. Use --force-scrape to re-scrape.")
+        elif not PLAYWRIGHT_AVAILABLE:
             print("\nPlaywright not available - using sample data only.")
-            print("To enable full scraping:")
-            print("  pip install playwright")
-            print("  playwright install chromium")
 
         print("\nImport complete!")
         print(f"  Total rims in database: {db.query(Rim).count()}")
